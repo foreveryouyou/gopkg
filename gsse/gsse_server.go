@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -51,11 +52,16 @@ type SSEServer struct {
 	serveDone     chan struct{}
 	serveDoneOnce sync.Once
 
-	// mu 保护 closed / served。
+	// mu 保护 closed。
 	// 发送与关闭都在这把锁下完成，保证“向已关闭 channel 发送”不会发生 panic。
 	mu     sync.RWMutex
 	closed bool
-	served bool
+
+	// served 用原子量而不是交给 mu 保护：队列满时 SendMessage 会卡在“等空位”上，
+	// 并一直持有读锁（见 sendMessage），此时 markServed 若再去抢写锁就与它互相等待
+	// ——Serve 起不来，队列也就永远没人排空，直到 SendMessage 超时丢消息。
+	// served 只是一次性标记，用 Swap 即可，不进锁。
+	served atomic.Bool
 }
 
 // NewSSEServer 创建服务端实例：一个连接一个实例，且只能 Serve 一次。
@@ -251,7 +257,7 @@ func (s *SSEServer) close(cause error) {
 		s.closed = true
 		close(s.out)
 	}
-	served := s.served
+	served := s.served.Load()
 	s.mu.Unlock()
 
 	// Serve 尚未启动时没人会去关 serveDone，这里直接通知等待者，避免 Done() 永久阻塞。
@@ -261,14 +267,10 @@ func (s *SSEServer) close(cause error) {
 }
 
 // markServed 标记 Serve 已启动；重复启动返回 false。
+//
+// 这里刻意不碰 mu：调用方可能正持有读锁阻塞在 SendMessage 上，抢写锁会死锁。
 func (s *SSEServer) markServed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.served {
-		return false
-	}
-	s.served = true
-	return true
+	return !s.served.Swap(true)
 }
 
 func (s *SSEServer) markServeDone() {

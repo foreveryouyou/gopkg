@@ -177,13 +177,50 @@ func TestSendMessage_ConcurrentWithStop(t *testing.T) {
 	}
 }
 
+// TestServe_StartsWhileQueueIsFull 生产者在 Serve 启动前就把队列填满时，Serve 必须能
+// 立刻开始消费。回归：sendMessage 阻塞等空位时一直持有读锁，markServed 再去抢写锁就与
+// 它互相等待——Serve 起不来、队列没人排空，直到 SendMessage 超时并丢掉那条消息。
+func TestServe_StartsWhileQueueIsFull(t *testing.T) {
+	s := NewSSEServer()
+	for i := range DefaultBufferSize {
+		if err := s.SendMessage("x"); err != nil {
+			t.Fatalf("fill %d: %v", i, err)
+		}
+	}
+
+	// 第 DefaultBufferSize+1 条：队列没有空位，会阻塞等待
+	sendDone := make(chan error, 1)
+	go func() { sendDone <- s.SendMessage("overflow") }()
+	time.Sleep(100 * time.Millisecond) // 确保上面这条已经卡在等待里
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/events", nil).WithContext(ctx)
+
+	start := time.Now()
+	serveDone := make(chan error, 1)
+	go func() { serveDone <- s.Serve(httptest.NewRecorder(), req) }()
+
+	select {
+	case err := <-sendDone:
+		if err != nil {
+			t.Fatalf("SendMessage: %v", err)
+		}
+		if d := time.Since(start); d > time.Second {
+			t.Fatalf("Serve 启动被阻塞了 %v", d)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("SendMessage 与 Serve 互相卡死")
+	}
+
+	cancel()
+	<-serveDone
+}
+
 func waitServed(t *testing.T, s *SSEServer) {
 	t.Helper()
 	for range 1000 {
-		s.mu.RLock()
-		served := s.served
-		s.mu.RUnlock()
-		if served {
+		if s.served.Load() {
 			return
 		}
 		time.Sleep(time.Millisecond)
