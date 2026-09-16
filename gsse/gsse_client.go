@@ -25,14 +25,14 @@ type SSEClient struct {
 	lastEventID string
 }
 
-// NewClient 创建客户端，请求由每次 Open 传入。
+// NewSSEClient 创建客户端，请求由每次 Open 传入。
 //
 // onMessage 为 nil 表示暂不注册回调，之后可以用 OnMessage 追加。
 // hc 可选：省略或传 nil 都用 http.DefaultClient。
 //
 // 别给 hc 设 Timeout：它是「整个请求含读 body」的上限，会把长连接掐断；
 // 需要超时请用 context，或 Transport 层的 ResponseHeaderTimeout / IdleConnTimeout。
-func NewClient(onMessage func(event Event), hc ...*http.Client) *SSEClient {
+func NewSSEClient(onMessage func(event Event), hc ...*http.Client) *SSEClient {
 	c := &SSEClient{hc: http.DefaultClient}
 	if len(hc) > 0 && hc[0] != nil {
 		c.hc = hc[0]

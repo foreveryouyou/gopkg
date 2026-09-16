@@ -132,9 +132,9 @@ msg.String() // "data: a\ndata: \ndata: b\n\n"
 `Open` 接受调用方构造的请求（header 完全可控），一次调用对应一条连接，重连自己循环：
 
 ```go
-c := gsse.NewClient(func(e gsse.Event) {
+c := gsse.NewSSEClient(func(e gsse.Event) {
 	log.Println(e.Type, e.Data)
-}) // 第二个参数可选：自定义 http.Client 时传 gsse.NewClient(fn, hc)
+}) // 第二个参数可选：自定义 http.Client 时传 gsse.NewSSEClient(fn, hc)
 
 for {
 	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:8080/events", nil)
@@ -156,7 +156,7 @@ for {
 
 | 方法 | 说明 |
 | --- | --- |
-| `NewClient(onMessage, hc...) *SSEClient` | 创建客户端，请求由每次 `Open` 传入；`hc` 可省略（或传 nil），缺省用 `http.DefaultClient` |
+| `NewSSEClient(onMessage, hc...) *SSEClient` | 创建客户端，请求由每次 `Open` 传入；`hc` 可省略（或传 nil），缺省用 `http.DefaultClient` |
 | `Open(ctx, req) error` | 建连并阻塞；`ctx` 取消立即关闭连接并返回 `ctx.Err()` |
 | `OnMessage(hdl)` | 追加消息回调（需在 `Open` 前注册） |
 | `LastEventID() string` | 当前 last event ID，可用于自定义重连 |

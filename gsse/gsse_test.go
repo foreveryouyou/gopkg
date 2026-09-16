@@ -218,7 +218,7 @@ func openWith(t *testing.T, produce func(s *SSEServer)) []Event {
 		t.Fatal(err)
 	}
 
-	c := NewClient(nil, ts.Client())
+	c := NewSSEClient(nil, ts.Client())
 	var got []Event
 	c.OnMessage(func(e Event) { got = append(got, e) })
 
@@ -306,7 +306,7 @@ func openRaw(t *testing.T, frames ...string) []Event {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := NewClient(nil, srv.Client())
+	c := NewSSEClient(nil, srv.Client())
 	var got []Event
 	c.OnMessage(func(e Event) { got = append(got, e) })
 
@@ -365,7 +365,7 @@ func TestClient_CancelInterruptsBlockedRead(t *testing.T) {
 		t.Fatal(err)
 	}
 	gotOne := make(chan struct{})
-	c := NewClient(func(Event) { close(gotOne) }, srv.Client())
+	c := NewSSEClient(func(Event) { close(gotOne) }, srv.Client())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -404,7 +404,7 @@ func TestClient_ReconnectResumesWithLastEventID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := NewClient(nil, srv.Client())
+	c := NewSSEClient(nil, srv.Client())
 
 	open := func(setHeader string) *http.Request {
 		t.Helper()

@@ -1,6 +1,7 @@
-// Package gsse 提供一个只依赖标准库 net/http 的 SSE（Server-Sent Events）服务端实现。
+// Package gsse 提供只依赖标准库 net/http 的 SSE（Server-Sent Events）实现：
+// 服务端 SSEServer 把连接升级成事件流，客户端 SSEClient 消费事件流。
 //
-// 一个连接对应一个 SSEServer：生产者调用 SendMessage 入队，Serve 在唯一一个 goroutine 中
+// 服务端：一个连接对应一个 SSEServer，生产者调用 SendMessage 入队，Serve 在唯一一个 goroutine 中
 // 消费队列并写回连接；Stop/Done 会关闭队列，并等待已入队的消息写完后再退出。
 package gsse
 
@@ -57,6 +58,7 @@ type SSEServer struct {
 	served bool
 }
 
+// NewSSEServer 创建服务端实例：一个连接一个实例，且只能 Serve 一次。
 func NewSSEServer() *SSEServer {
 	s := &SSEServer{
 		out:               make(chan *Message, DefaultBufferSize),
