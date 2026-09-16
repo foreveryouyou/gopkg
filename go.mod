@@ -1,3 +1,3 @@
 module github.com/foreveryouyou/gopkg
 
-go 1.18.0
+go 1.26.0
